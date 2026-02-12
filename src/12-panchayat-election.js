@@ -65,16 +65,87 @@
  */
 export function createElection(candidates) {
   // Your code here
+  const registeredVoters = new Map();
+  const votedIds = new Set();
+  const votes = candidates.reduce((acc, c) => {
+    acc[c.id] = 0;
+    return acc;
+  }, {});
+
+  return {
+    registerVoter(voter) {
+      if (!voter || typeof voter.id !== "string" || voter.age < 18) return false;
+      if (registeredVoters.has(voter.id)) return false;
+
+      registeredVoters.set(voter.id, voter);
+      return true;
+    },
+
+    castVote(voterId, candidateId, onSuccess, onError) {
+      if (!registeredVoters.has(voterId)) return onError("voter not registered");
+      if (votedIds.has(voterId)) return onError("already voted");
+      if (!(candidateId in votes)) return onError("candidate does not exist");
+
+      votes[candidateId]++;
+      votedIds.add(voterId);
+      return onSuccess({ voterId, candidateId });
+    },
+
+    getResults(sortFn) {
+      const results = candidates.map(c => ({
+        ...c,
+        votes: votes[c.id]
+      }));
+
+      if (typeof sortFn === "function") {
+        return results.sort(sortFn);
+      }
+
+      return results.sort((a, b) => b.votes - a.votes);
+    },
+
+    getWinner() {
+      const results = this.getResults();
+      const totalVotes = Object.values(votes).reduce((sum, v) => sum + v, 0);
+      if (totalVotes === 0) return null;
+      return results[0];
+    }
+  };
 }
 
 export function createVoteValidator(rules) {
   // Your code here
+  return (voter) => {
+    if (!voter) return { valid: false, reason: "No voter data" };
+
+    for (const field of rules.requiredFields) {
+      if (!(field in voter)) {
+        return { valid: false, reason: `Missing field: ${field}` };
+      }
+    }
+
+    if (voter.age < rules.minAge) {
+      return { valid: false, reason: `Underage: must be ${rules.minAge}` };
+    }
+
+    return { valid: true, reason: null };
+  };
 }
 
 export function countVotesInRegions(regionTree) {
   // Your code here
+  if (!regionTree || typeof regionTree.votes !== "number") return 0;
+
+  const subRegionVotes = Array.isArray(regionTree.subRegions)
+    ? regionTree.subRegions.reduce((sum, sub) => sum + countVotesInRegions(sub), 0)
+    : 0;
+
+  return regionTree.votes + subRegionVotes;
 }
 
 export function tallyPure(currentTally, candidateId) {
   // Your code here
+  const newTally = { ...currentTally };
+  newTally[candidateId] = (newTally[candidateId] || 0) + 1;
+  return newTally;
 }
